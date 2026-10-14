@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Repo Agent Sandbox</title>
+<style>
+  /* Chalk marketing palette: green-1 ground, chartreuse primary, mint accents. */
+  :root { --bg:#224A41; --term:#173029; --line:#32645B; --ink:#EFF5F3; --muted:#B9CFC7;
+          --accent:#BBD96D; --mint:#70CD96; --warn:#F8947F;
+          --mono: ui-monospace,"SFMono-Regular",Menlo,Monaco,monospace; }
+  * { box-sizing:border-box; }
+  html, body { height:100%; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;
+         display:flex; flex-direction:column; padding:24px; gap:12px; }
+  html.embed body { padding:0; gap:0; }
+  html.embed header { display:none; }
+  header h1 { font-size:22px; font-weight:500; margin:0; letter-spacing:-0.3px; }
+  header p { margin:4px 0 0; color:var(--muted); font-size:14px; }
+  .bar { display:flex; align-items:center; justify-content:space-between; gap:12px;
+         padding:10px 14px; background:var(--bg); border-bottom:1px solid var(--line);
+         font:12px/18px var(--mono); text-transform:uppercase; letter-spacing:.06em; color:var(--muted); }
+  .bar > span:first-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .bar .dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--line);
+              margin-right:8px; vertical-align:middle; }
+  .bar .dot.live { background:var(--mint); box-shadow:0 0 0 3px rgba(112,205,150,.2); }
+  #timer { color:var(--accent); flex-shrink:0; }
+  .frame { position:relative; flex:1; min-height:360px; display:flex; flex-direction:column;
+           border:1px solid var(--line); border-radius:4px; overflow:hidden; background:var(--term); }
+  html.embed .frame { border:0; border-radius:0; }
+  #terminal { flex:1; padding:10px 12px; min-height:0; }
+  .overlay { position:absolute; inset:41px 0 0 0; display:flex; flex-direction:column; align-items:center;
+             justify-content:center; gap:16px; padding:24px; text-align:center; background:var(--term); }
+  .overlay[hidden] { display:none; }
+  .overlay p { margin:0; max-width:520px; color:var(--muted); font-size:15px; }
+  .overlay p.error { color:var(--warn); }
+  .overlay .prompt { font:14px/20px var(--mono); color:var(--mint); }
+  form { display:flex; gap:10px; width:100%; max-width:560px; flex-wrap:wrap; justify-content:center; }
+  input { flex:1 1 280px; min-width:0; font:14px/20px var(--mono); color:var(--ink); background:var(--bg);
+          border:1px solid var(--line); border-radius:20px; padding:11px 16px; outline:none; }
+  input:focus { border-color:var(--accent); }
+  input::placeholder { color:#648680; }
+  button { font:13px/15px var(--mono); text-transform:uppercase; letter-spacing:.06em;
+           border:1px solid var(--accent); border-radius:20px; padding:12px 22px; cursor:pointer;
+           background:var(--accent); color:var(--bg); transition:background .15s,color .15s; }
+  button:hover { background:transparent; color:var(--accent); }
+  button:disabled { opacity:.5; cursor:default; }
+  .chips { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; max-width:560px; }
+  .chip { font:12px/16px var(--mono); color:var(--muted); background:transparent; border:1px solid var(--line);
+          border-radius:14px; padding:5px 11px; text-transform:none; letter-spacing:0; }
+  .chip:hover { color:var(--ink); border-color:var(--muted); background:transparent; }
+  .spinner { width:18px; height:18px; border:2px solid var(--line); border-top-color:var(--accent);
+             border-radius:50%; animation:spin .8s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+</style>
+<script>
+  if (new URLSearchParams(location.search).has("embed")) document.documentElement.classList.add("embed");
+</script>
+</head>
+<body>
+  <header>
+    <h1>Repo agent sandbox</h1>
+    <p>Clone any public GitHub repository into an isolated sandbox and work on it with the pi coding agent.</p>
+  </header>
+  <div class="frame">
+    <div class="bar">
+      <span><span id="dot" class="dot"></span><span id="label">sandbox · offline</span></span>
+      <span id="timer"></span>
+    </div>
+    <div id="terminal"></div>
+    <div id="overlay" class="overlay">
+      <div class="prompt">git clone --depth 1 &lt;repo&gt; &amp;&amp; pi</div>
+      <p id="overlay-text">Paste a public GitHub repository. It is cloned into a fresh sandbox that can reach only github.com and the model gateway, and the pi coding agent opens in the checkout.</p>
+      <form id="form">
+        <input id="repo" name="repo" autocomplete="off" spellcheck="false" placeholder="github.com/owner/repo" aria-label="GitHub repository">
+        <button id="launch" type="submit">Open in sandbox</button>
+      </form>
+      <div class="chips" id="chips">
+        <button class="chip" type="button" data-repo="pallets/click">pallets/click</button>
+        <button class="chip" type="button" data-repo="tj/commander.js">tj/commander.js</button>
+        <button class="chip" type="button" data-repo="sharkdp/hexyl">sharkdp/hexyl</button>
+        <button class="chip" type="button" data-repo="chalk-ai/repo-agent-sandbox">chalk-ai/repo-agent-sandbox</button>
+      </div>
+    </div>
+  </div>
+
+<script type="module">
+import { init, Terminal, FitAddon } from "./static/ghostty-web.js";
+
+const overlay = document.getElementById("overlay");
+const overlayText = document.getElementById("overlay-text");
+const form = document.getElementById("form");
+const repoInput = document.getElementById("repo");
+const launch = document.getElementById("launch");
+const chips = document.getElementById("chips");
+const label = document.getElementById("label");
+const dot = document.getElementById("dot");
+const timerEl = document.getElementById("timer");
+
+const params = new URLSearchParams(location.search);
+if (params.get("repo")) repoInput.value = params.get("repo");
+
+await init();
+const term = new Terminal({
+  cursorBlink: true,
+  fontSize: 14,
+  fontFamily: 'ui-monospace, "SFMono-Regular", Menlo, Monaco, monospace',
+  scrollback: 5000,
+  theme: {
+    background: "#173029", foreground: "#EFF5F3", cursor: "#BBD96D", cursorAccent: "#173029",
+    selectionBackground: "#32645B",
+    black: "#0C3129", red: "#F8947F", green: "#70CD96", yellow: "#F3F662",
+    blue: "#81CEEA", magenta: "#B29AF9", cyan: "#73D19C", white: "#EFF5F3",
+    brightBlack: "#648680", brightRed: "#F57596", brightGreen: "#BBD96D", brightYellow: "#F3F662",
+    brightBlue: "#C2FAFC", brightMagenta: "#B5A3FC", brightCyan: "#C0EAD4", brightWhite: "#FFFFFF",
+  },
+});
+// Exposed for debugging and browser tests, which read the buffer since ghostty draws to a canvas.
+window.term = term;
+const fit = new FitAddon();
+term.loadAddon(fit);
+// open() focuses the terminal, and focusing inside an iframe scrolls the embedding page to it,
+// so the terminal opens on the first launch rather than on page load.
+let opened = false;
+function openTerminal() {
+  if (opened) return;
+  opened = true;
+  term.open(document.getElementById("terminal"));
+  fit.observeResize();
+  window.addEventListener("resize", () => fit.fit());
+}
+
+let ws = null;
+let countdown = null;
+
+function setLive(text, live) {
+  label.textContent = text;
+  dot.classList.toggle("live", live);
+}
+
+function showOverlay(text, isError) {
+  overlayText.textContent = text;
+  overlayText.classList.toggle("error", !!isError);
+  launch.disabled = false;
+  form.hidden = false;
+  chips.hidden = false;
+  overlay.querySelector(".spinner")?.remove();
+  overlay.hidden = false;
+}
+
+function startCountdown(seconds) {
+  const end = Date.now() + seconds * 1000;
+  clearInterval(countdown);
+  const tick = () => {
+    const left = Math.max(0, Math.round((end - Date.now()) / 1000));
+    timerEl.textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")} left`;
+  };
+  tick();
+  countdown = setInterval(tick, 1000);
+}
+
+const ENDED_TEXT = {
+  exited: "The shell exited, and the sandbox has been deleted. Open another repository?",
+  idle: "This sandbox was idle for a while, so it has been deleted.",
+  time_limit: "Time's up. Demo sandboxes last a few minutes, then they are deleted.",
+  error: "Something went wrong starting your sandbox.",
+};
+
+term.onData((data) => {
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "input", data }));
+});
+term.onResize(({ cols, rows }) => {
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "resize", cols, rows }));
+});
+
+function connect(repo) {
+  launch.disabled = true;
+  form.hidden = true;
+  chips.hidden = true;
+  overlayText.classList.remove("error");
+  overlayText.textContent = "Starting…";
+  overlay.appendChild(Object.assign(document.createElement("div"), { className: "spinner" }));
+  openTerminal();
+  term.reset();
+  fit.fit();
+
+  const url = new URL("ws", location.href);
+  url.protocol = location.protocol === "https:" ? "wss:" : "ws:";
+  url.searchParams.set("repo", repo);
+  url.searchParams.set("cols", term.cols);
+  url.searchParams.set("rows", term.rows);
+  ws = new WebSocket(url);
+  ws.binaryType = "arraybuffer";
+  let ended = null;
+  let endedIsError = false;
+
+  ws.onmessage = (ev) => {
+    if (ev.data instanceof ArrayBuffer) {
+      term.write(new Uint8Array(ev.data));
+      return;
+    }
+    const msg = JSON.parse(ev.data);
+    if (msg.type === "status") {
+      overlayText.textContent = msg.message;
+    } else if (msg.type === "ready") {
+      overlay.hidden = true;
+      setLive(`${msg.repo} · github.com + model gateway only`, true);
+      startCountdown(msg.expires_in);
+      term.focus();
+    } else if (msg.type === "busy" || msg.type === "limited" || msg.type === "rejected") {
+      ended = msg.message;
+      endedIsError = msg.type === "rejected";
+    } else if (msg.type === "ended") {
+      ended = ENDED_TEXT[msg.reason] || ENDED_TEXT.exited;
+      endedIsError = msg.reason === "error";
+    }
+  };
+  ws.onclose = () => {
+    ws = null;
+    clearInterval(countdown);
+    timerEl.textContent = "";
+    setLive("sandbox · offline", false);
+    showOverlay(ended || "The connection closed, and the sandbox has been deleted.", endedIsError);
+  };
+}
+
+form.addEventListener("submit", (ev) => {
+  ev.preventDefault();
+  const repo = repoInput.value.trim();
+  if (!repo) {
+    repoInput.focus();
+    return;
+  }
+  connect(repo);
+});
+chips.addEventListener("click", (ev) => {
+  const repo = ev.target?.dataset?.repo;
+  if (!repo) return;
+  repoInput.value = repo;
+  connect(repo);
+});
+</script>
+</body>
+</html>
