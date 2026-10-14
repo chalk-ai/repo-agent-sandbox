@@ -99,6 +99,14 @@ const dot = document.getElementById("dot");
 const timerEl = document.getElementById("timer");
 
 const params = new URLSearchParams(location.search);
+
+// When embedded, report the demo's main actions to the embedding page's analytics. Labels are
+// fixed strings only: a preset repo name, "custom", or an end reason, never what was typed.
+const PRESETS = new Set([...document.querySelectorAll("#chips [data-repo]")].map((el) => el.dataset.repo));
+function report(action, label) {
+  if (window.parent === window) return;
+  window.parent.postMessage({ type: "chalk-demo-interaction", action, label }, "*");
+}
 if (params.get("repo")) repoInput.value = params.get("repo");
 
 await init();
@@ -175,6 +183,7 @@ term.onResize(({ cols, rows }) => {
 });
 
 function connect(repo) {
+  report("open_repo", PRESETS.has(repo) ? repo : "custom");
   launch.disabled = true;
   form.hidden = true;
   chips.hidden = true;
@@ -205,14 +214,17 @@ function connect(repo) {
       overlayText.textContent = msg.message;
     } else if (msg.type === "ready") {
       overlay.hidden = true;
+      report("session_ready");
       setLive(`${msg.repo} · github.com + model gateway only`, true);
       startCountdown(msg.expires_in);
       term.focus();
     } else if (msg.type === "busy" || msg.type === "limited" || msg.type === "rejected") {
       ended = msg.message;
       endedIsError = msg.type === "rejected";
+      report("session_refused", msg.type);
     } else if (msg.type === "ended") {
       ended = ENDED_TEXT[msg.reason] || ENDED_TEXT.exited;
+      report("session_ended", msg.reason in ENDED_TEXT ? msg.reason : "exited");
       endedIsError = msg.reason === "error";
     }
   };
