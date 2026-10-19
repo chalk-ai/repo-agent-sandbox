@@ -29,7 +29,7 @@ gateway enabled. Create a Chalk secret named `CHALK_ROUTER_API_KEY` holding a ga
 pass `--gateway-secret` with another name). Give that key the smallest budget and model list your
 gateway allows: anyone who opens the demo spends it.
 
-Credentials come from `chalk config` in the current directory. You can also set `CHALK_API_SERVER`,
+Credentials come from the SDK’s ambient credentials from `chalk login`. You can also set `CHALK_API_SERVER`,
 `CHALK_CLIENT_ID`, `CHALK_CLIENT_SECRET` and `CHALK_ENVIRONMENT_ID` yourself.
 
 ```bash
@@ -111,3 +111,10 @@ Pooled sandboxes expire on their own lifetime within about 20 minutes.
 ## License
 
 Apache-2.0. ghostty-web and pi are MIT.
+
+## Local authentication
+
+The SDK reads credentials, API host, and the selected environment from your existing
+`chalk login` in `~/.chalk.yml`, including project-scoped and default logins.
+For unattended runs, `CHALK_CLIENT_ID` and `CHALK_CLIENT_SECRET` remain supported. Where available, `--env-id`
+overrides the target environment; otherwise the SDK uses your login or environment settings.
