@@ -75,10 +75,10 @@ MAX_REPO_MB = int(os.environ.get("REPO_AGENT_MAX_REPO_MB", "250"))
 MAX_CHECKOUT_MB = int(os.environ.get("REPO_AGENT_MAX_CHECKOUT_MB", "400"))
 CLONE_TIMEOUT_SECONDS = int(os.environ.get("REPO_AGENT_CLONE_TIMEOUT_SECONDS", "90"))
 # The model gateway is an OpenAI-compatible endpoint on the environment's API server.
-GATEWAY_URL = os.environ.get("REPO_AGENT_GATEWAY_URL", "").rstrip("/")
+GATEWAY_URL = os.environ.get("REPO_AGENT_GATEWAY_URL", os.environ["CHALK_API_SERVER"].rstrip("/") + "/v1/router").rstrip("/")
 GATEWAY_SECRET = os.environ.get("REPO_AGENT_GATEWAY_SECRET", "CHALK_ROUTER_API_KEY")
 MODELS = [m for m in os.environ.get("REPO_AGENT_MODELS", "openai/gpt-5.4-mini,openai/gpt-5.4").split(",") if m]
-ENVIRONMENT_ID = os.environ.get("CHALK_ENVIRONMENT_ID", "")
+ENVIRONMENT_ID = os.environ["CHALK_ENVIRONMENT"]
 SANDBOX_NAME_PREFIX = "repo-agent-"
 SANDBOX_TAG = {"app": "repo-agent-demo"}
 MAX_INPUT_BYTES = 16 * 1024
