@@ -23,7 +23,6 @@ Then open the printed URL and paste a GitHub repository.
 
 from __future__ import annotations
 
-import os
 import time
 from pathlib import Path
 
@@ -43,25 +42,9 @@ FETCH_GHOSTTY = (
 )
 
 
-def configure_chalk() -> None:
-    """Resolve deployment routing settings using the SDK's ambient login."""
-    from chalkcompute import ConnectClient
-
-    client = ConnectClient()
-    try:
-        client._ensure_auth()
-        # Only routing settings are needed by the deployed app; credentials stay in the SDK.
-        os.environ["CHALK_API_SERVER"] = client._api_server
-        os.environ["CHALK_ENVIRONMENT_ID"] = client._env_id
-    finally:
-        client.close()
-
-
 def main() -> None:
-    configure_chalk()
     from chalkcompute import Image, ScalingGroup
 
-    api_server = os.environ["CHALK_API_SERVER"].rstrip("/")
     image = (
         Image.debian_slim(python_version="3.12")
         .pip_install(["chalkcompute==2.13.5", "fastapi==0.116.1", "uvicorn[standard]==0.35.0"])
@@ -79,13 +62,10 @@ def main() -> None:
         cpu="1",
         memory="2Gi",
         env={
-            # Not secrets: which API the server's workload identity talks to, and where the
+
             # gateway lives. The gateway key stays a Chalk secret the server never reads.
-            "CHALK_API_SERVER": api_server,
-            "CHALK_ENVIRONMENT_ID": os.environ["CHALK_ENVIRONMENT_ID"],
             "PORT": "8080",
             "REPO_AGENT_STATIC_DIR": STATIC_DIR,
-            "REPO_AGENT_GATEWAY_URL": f"{api_server}/v1/router",
             "REPO_AGENT_GATEWAY_SECRET": 'CHALK_ROUTER_API_KEY',
             "REPO_AGENT_MODELS": 'openai/gpt-5.4-mini,openai/gpt-5.4',
             "REPO_AGENT_MAX_SESSIONS": '4',

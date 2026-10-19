@@ -29,8 +29,7 @@ gateway enabled. Create a Chalk secret named `CHALK_ROUTER_API_KEY` holding a ga
 pass `--gateway-secret` with another name). Give that key the smallest budget and model list your
 gateway allows: anyone who opens the demo spends it.
 
-Credentials come from the SDK’s ambient credentials from `chalk login`. You can also set `CHALK_API_SERVER`,
-`CHALK_CLIENT_ID`, `CHALK_CLIENT_SECRET` and `CHALK_ENVIRONMENT_ID` yourself.
+Credentials come from your existing `chalk login`.
 
 ```bash
 ./deploy.py
