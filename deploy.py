@@ -17,13 +17,12 @@ smallest budget and model list your gateway supports.
 
 Credentials for the deploy itself come from your existing `chalk login` (or the
 CHALK_* env vars):
-    ./deploy.py [--env-id <environment>] [--name repo-agent-sandbox]
+    ./deploy.py
 Then open the printed URL and paste a GitHub repository.
 """
 
 from __future__ import annotations
 
-import argparse
 import os
 import time
 from pathlib import Path
@@ -44,12 +43,10 @@ FETCH_GHOSTTY = (
 )
 
 
-def configure_chalk(env_id: str | None) -> None:
+def configure_chalk() -> None:
     """Resolve deployment routing settings using the SDK's ambient login."""
     from chalkcompute import ConnectClient
 
-    if env_id:
-        os.environ["CHALK_ENVIRONMENT"] = env_id
     client = ConnectClient()
     try:
         client._ensure_auth()
@@ -61,18 +58,7 @@ def configure_chalk(env_id: str | None) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--name", default="repo-agent-sandbox")
-    # Defaults to the environment in your existing `chalk login` (or CHALK_ENVIRONMENT_ID).
-    parser.add_argument("--env-id", default=None)
-    parser.add_argument("--gateway-secret", default="CHALK_ROUTER_API_KEY")
-    parser.add_argument("--models", default="openai/gpt-5.4-mini,openai/gpt-5.4")
-    parser.add_argument("--max-sessions", default="4")
-    parser.add_argument("--warm-pool", default="2")
-    parser.add_argument("--ready-timeout", type=float, default=1200.0)
-    args = parser.parse_args()
-
-    configure_chalk(args.env_id)
+    configure_chalk()
     from chalkcompute import Image, ScalingGroup
 
     api_server = os.environ["CHALK_API_SERVER"].rstrip("/")
@@ -89,7 +75,7 @@ def main() -> None:
 
     sg = ScalingGroup(
         image=image,
-        name=args.name,
+        name='repo-agent-sandbox',
         cpu="1",
         memory="2Gi",
         env={
@@ -100,10 +86,10 @@ def main() -> None:
             "PORT": "8080",
             "REPO_AGENT_STATIC_DIR": STATIC_DIR,
             "REPO_AGENT_GATEWAY_URL": f"{api_server}/v1/router",
-            "REPO_AGENT_GATEWAY_SECRET": args.gateway_secret,
-            "REPO_AGENT_MODELS": args.models,
-            "REPO_AGENT_MAX_SESSIONS": args.max_sessions,
-            "REPO_AGENT_WARM_POOL": args.warm_pool,
+            "REPO_AGENT_GATEWAY_SECRET": 'CHALK_ROUTER_API_KEY',
+            "REPO_AGENT_MODELS": 'openai/gpt-5.4-mini,openai/gpt-5.4',
+            "REPO_AGENT_MAX_SESSIONS": '4',
+            "REPO_AGENT_WARM_POOL": '2',
         },
         entrypoint=["python", f"{APP_DIR}/server.py"],
         port=8080,
@@ -115,7 +101,7 @@ def main() -> None:
     )
     t0 = time.monotonic()
     try:
-        sg.deploy(build_timeout=1800.0, ready_timeout=args.ready_timeout)
+        sg.deploy(build_timeout=1800.0, ready_timeout=1200.0)
     finally:
         print(f"deploy returned after {time.monotonic() - t0:.0f}s")
     print("web_url:", sg.web_url)
